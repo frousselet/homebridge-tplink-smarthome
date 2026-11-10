@@ -37,7 +37,7 @@
   "scripts": {
     "prebuild": "npm run clean",
     "build": "tsc --project tsconfig.source.json",
-    "clean": "rimraf lib/ build/",
+    "clean": "node -e \"for (const d of ['lib', 'build']) require('fs').rmSync(d, { recursive: true, force: true })\"",
     "clean:debug": "rimraf $PWD/test/homebridge/persist && npm run clean:debug:acc",
     "clean:debug:acc": "rimraf $PWD/test/homebridge/accessories",
     "clean:debugsim": "rimraf $PWD/test/homebridge-simulator/persist && npm run clean:debugsim:acc",
