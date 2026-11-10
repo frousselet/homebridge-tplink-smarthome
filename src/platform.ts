@@ -24,6 +24,10 @@ import { lookup, lookupCharacteristicNameByUUID, isObjectLike } from './utils';
 import type { TplinkDevice } from './utils';
 import create from './homekit-device/create';
 import HomekitDevice from './homekit-device';
+import createMatterDevice from './matter-device/create';
+import type MatterDevice from './matter-device';
+import { getMatterAPI, isHapEnabled } from './matter-types';
+import type { MatterAccessory, MatterAPI } from './matter-types';
 
 // okay for reading json
 // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -48,6 +52,19 @@ export default class TplinkSmarthomePlatform implements DynamicPlatformPlugin {
   > = new Map();
 
   private readonly homekitDevicesById: Map<string, HomekitDevice> = new Map();
+
+  private readonly configuredMatterAccessories: Map<string, MatterAccessory> =
+    new Map();
+
+  private readonly matterDevicesById: Map<string, MatterDevice> = new Map();
+
+  private readonly tplinkDevicesById: Map<string, TplinkDevice> = new Map();
+
+  /** Defined when Matter is enabled for the bridge running this plugin */
+  public readonly matter: MatterAPI | undefined;
+
+  /** False when HAP is disabled for the bridge running this plugin */
+  public readonly hapEnabled: boolean;
 
   private readonly categories: Map<Categories, string> = new Map();
 
@@ -91,6 +108,14 @@ export default class TplinkSmarthomePlatform implements DynamicPlatformPlugin {
 
     this.customCharacteristics = Characteristics(api.hap.Characteristic);
 
+    this.matter = getMatterAPI(api);
+    this.hapEnabled = isHapEnabled(api);
+    this.log.info(
+      'HAP: %s, Matter: %s',
+      this.hapEnabled ? 'enabled' : 'disabled',
+      this.matter != null ? 'enabled' : 'disabled'
+    );
+
     this.categories.set(Categories.LIGHTBULB, 'LIGHTBULB');
     this.categories.set(Categories.OUTLET, 'OUTLET');
     this.categories.set(Categories.SWITCH, 'SWITCH');
@@ -127,12 +152,9 @@ export default class TplinkSmarthomePlatform implements DynamicPlatformPlugin {
     });
 
     client.on('device-offline', (device: TplinkDevice) => {
-      const deviceAccessory = this.homekitDevicesById.get(device.id);
-
-      if (deviceAccessory !== undefined) {
+      if (this.tplinkDevicesById.has(device.id)) {
         this.log.debug(
           `Device Offline: ${chalk.blue(`[${device.alias}]`)} %s [%s]`,
-          deviceAccessory.homebridgeAccessory.displayName,
           device.deviceType,
           device.id,
           device.host,
@@ -151,11 +173,8 @@ export default class TplinkSmarthomePlatform implements DynamicPlatformPlugin {
         },
       });
 
-      const refreshEmeterForAccessories = async (
-        accessories: HomekitDevice[]
-      ) => {
-        for (const acc of accessories) {
-          const device = acc.tplinkDevice;
+      const refreshEmeterForDevices = async (devices: TplinkDevice[]) => {
+        for (const device of devices) {
           if (device.supportsEmeter) {
             this.log.debug(
               `getEmeterRealtime ${chalk.blue(`[${device.alias}]`)}`
@@ -174,11 +193,10 @@ export default class TplinkSmarthomePlatform implements DynamicPlatformPlugin {
         if (this.config.emeterPollingInterval <= 0) return;
 
         try {
-          const deviceAccessories = this.deviceAccessoriesByHost;
           const promises: Promise<unknown>[] = [];
 
-          for (const accForHost of deviceAccessories.values()) {
-            promises.push(refreshEmeterForAccessories(accForHost));
+          for (const devicesForHost of this.devicesByHost.values()) {
+            promises.push(refreshEmeterForDevices(devicesForHost));
           }
           await Promise.all(promises);
         } catch (err) {
@@ -241,15 +259,15 @@ export default class TplinkSmarthomePlatform implements DynamicPlatformPlugin {
     return `[${chalk.green(characteristicName)}]`;
   }
 
-  private get deviceAccessoriesByHost(): Map<string, HomekitDevice[]> {
-    const byHost: Map<string, HomekitDevice[]> = new Map();
-    for (const [, tpLinkAccessory] of this.homekitDevicesById) {
-      const { host } = tpLinkAccessory.tplinkDevice;
+  private get devicesByHost(): Map<string, TplinkDevice[]> {
+    const byHost: Map<string, TplinkDevice[]> = new Map();
+    for (const [, tplinkDevice] of this.tplinkDevicesById) {
+      const { host } = tplinkDevice;
       const arr = byHost.get(host);
       if (arr != null) {
-        arr.push(tpLinkAccessory);
+        arr.push(tplinkDevice);
       } else {
-        byHost.set(host, [tpLinkAccessory]);
+        byHost.set(host, [tplinkDevice]);
       }
     }
     return byHost;
@@ -333,6 +351,21 @@ export default class TplinkSmarthomePlatform implements DynamicPlatformPlugin {
   }
 
   /**
+   * Function invoked when homebridge (>= 2.0) restores a cached Matter accessory
+   */
+  configureMatterAccessory(accessory: MatterAccessory): void {
+    this.log.info(
+      `Configuring cached Matter accessory: ${chalk.blue(
+        `[${accessory.displayName}]`
+      )} UUID: ${accessory.UUID} deviceId: %s `,
+      accessory.context?.deviceId
+    );
+    this.log.debug('%O', accessory.context);
+
+    this.configuredMatterAccessories.set(accessory.UUID, accessory);
+  }
+
+  /**
    * Adds a new or existing real device.
    */
   private foundDevice(device: TplinkDevice): void {
@@ -343,9 +376,10 @@ export default class TplinkSmarthomePlatform implements DynamicPlatformPlugin {
       return;
     }
 
-    if (this.homekitDevicesById.get(deviceId) !== undefined) {
+    if (this.tplinkDevicesById.has(deviceId)) {
       return;
     }
+    this.tplinkDevicesById.set(deviceId, device);
 
     this.log.info(
       `Adding: ${chalk.blue(`[${device.alias}]`)} %s [%s]`,
@@ -354,11 +388,25 @@ export default class TplinkSmarthomePlatform implements DynamicPlatformPlugin {
     );
 
     const uuid = this.api.hap.uuid.generate(deviceId);
-    const accessory = this.configuredAccessories.get(uuid);
 
-    this.homekitDevicesById.set(
-      device.id,
-      this.createHomekitDevice(accessory, device)
-    );
+    if (this.hapEnabled) {
+      const accessory = this.configuredAccessories.get(uuid);
+      this.homekitDevicesById.set(
+        deviceId,
+        this.createHomekitDevice(accessory, device)
+      );
+    }
+
+    if (this.matter != null) {
+      const matterDevice = createMatterDevice(
+        this,
+        this.matter,
+        this.configuredMatterAccessories.get(uuid),
+        device
+      );
+      this.matterDevicesById.set(deviceId, matterDevice);
+      // errors are logged by register()
+      matterDevice.register().catch(() => {});
+    }
   }
 }
