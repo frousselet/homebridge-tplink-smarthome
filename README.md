@@ -40,6 +40,24 @@ More models may be supported than listed. If you have another model working plea
 | KL125, KL400, KL430, LB130, LB230               | Lightbulb | On<br/>Brightness<br/>ColorTemperature<br/>Hue<br/>Saturation<br/>Watts (Custom)                                                                                                                   |
 | ES20M                                           | Lightbulb | On<br/>Brightness                                                                                                                                                                                  |
 
+## Matter
+
+With Homebridge v2.0.0 or later, devices are also exposed over [Matter](https://csa-iot.org/all-solutions/matter/) (Apple Home, Google Home, Amazon Alexa, SmartThings...) when Matter is enabled for the bridge the plugin runs on: add a `matter` block to `bridge` (main bridge) or to the platform's `_bridge` (child bridge). See the [Homebridge Matter documentation](https://github.com/homebridge-plugins/homebridge-matter/wiki).
+
+HAP (HomeKit) accessories are still published unless HAP is disabled for the bridge (`hap.enabled: false`). If both HAP and Matter are paired to the same Apple Home, devices will show up twice: run the plugin on a child bridge with only one of them enabled.
+
+| Model                                                       | Matter Device Type      | Clusters                                                                |
+| ----------------------------------------------------------- | ----------------------- | ----------------------------------------------------------------------- |
+| HS100, HS103, HS105, HS107, KP105, KP303, KP400, EP25, EP40 | On/Off Plug-in Unit     | OnOff                                                                   |
+| HS110, HS300, KP115                                         | On/Off Plug-in Unit     | OnOff<br/>ElectricalPowerMeasurement¹<br/>ElectricalEnergyMeasurement¹  |
+| Models in `switchModels` (HS200, HS210 by default)          | On/Off Light            | OnOff                                                                   |
+| HS220, HS230, ES20M                                         | Dimmable Light          | OnOff<br/>LevelControl                                                  |
+| KL50, LB100, LB110, LB200                                   | Dimmable Light          | OnOff<br/>LevelControl<br/>ElectricalPowerMeasurement¹                  |
+| LB120, KL120                                                | Color Temperature Light | OnOff<br/>LevelControl<br/>ColorControl<br/>ElectricalPowerMeasurement¹ |
+| KL125, KL400, KL430, LB130, LB230                           | Extended Color Light    | OnOff<br/>LevelControl<br/>ColorControl<br/>ElectricalPowerMeasurement¹ |
+
+¹ Requires Homebridge v2.2.0 or later.
+
 ## Installation
 
 ### Manual Installation
@@ -54,9 +72,30 @@ More models may be supported than listed. If you have another model working plea
 
 Check out [Homebridge Config UI X](https://github.com/oznu/homebridge-config-ui-x) for easier setup. This plugin can be installed from the **Plugins** tab by searching.
 
+### Installation from GitHub
+
+Matter support is not published on npm yet. To install this version directly from the [GitHub repository](https://github.com/frousselet/homebridge-tplink-smarthome) (the plugin is built automatically during the install):
+
+- Homebridge installed globally with npm:
+
+  ```sh
+  npm install -g github:frousselet/homebridge-tplink-smarthome
+  ```
+
+- Homebridge installed with `hb-service` (Raspberry Pi image, Homebridge UI...): open the **Terminal** in the Homebridge UI (or a shell in the Homebridge storage directory, usually `/var/lib/homebridge`) and run:
+
+  ```sh
+  npm install github:frousselet/homebridge-tplink-smarthome
+  ```
+
+A specific branch, tag or commit can be installed by appending `#<ref>`, e.g. `github:frousselet/homebridge-tplink-smarthome#main`.
+
+Restart Homebridge afterwards. To expose devices over Matter, Homebridge v2.0.0 or later is required and Matter must be enabled for the bridge, see [Matter](#matter).
+
 ## Updating
 
 - `npm update -g homebridge-tplink-smarthome`
+- When installed from GitHub, run the same install command again to get the latest version.
 
 ## Configuration
 
