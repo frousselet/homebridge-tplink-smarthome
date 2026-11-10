@@ -87,7 +87,7 @@ Matter support is not published on npm yet. To install this version directly fro
 
   ```sh
   cd /var/lib/homebridge
-  sudo -u homebridge PATH=/opt/homebridge/bin:$PATH npm install github:frousselet/homebridge-tplink-smarthome
+  sudo -H -u homebridge env PATH=/opt/homebridge/bin:$PATH npm install github:frousselet/homebridge-tplink-smarthome
   ```
 
 - Homebridge installed globally with npm: **do not** use `npm install -g github:...`, npm doesn't install the build tools of git dependencies for global installs (`tsc: not found`). Build a package first and install it:
