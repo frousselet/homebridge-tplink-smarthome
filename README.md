@@ -76,26 +76,38 @@ Check out [Homebridge Config UI X](https://github.com/oznu/homebridge-config-ui-
 
 Matter support is not published on npm yet. To install this version directly from the [GitHub repository](https://github.com/frousselet/homebridge-tplink-smarthome) (the plugin is built automatically during the install):
 
-- Homebridge installed globally with npm:
+- Homebridge installed with `hb-service` (Homebridge apt package / Raspberry Pi image, Homebridge UI...): plugins live in the Homebridge storage directory (usually `/var/lib/homebridge`). Open the **Terminal** in the Homebridge UI and run:
 
   ```sh
-  npm install -g github:frousselet/homebridge-tplink-smarthome
-  ```
-
-- Homebridge installed with `hb-service` (Raspberry Pi image, Homebridge UI...): open the **Terminal** in the Homebridge UI (or a shell in the Homebridge storage directory, usually `/var/lib/homebridge`) and run:
-
-  ```sh
+  cd /var/lib/homebridge
   npm install github:frousselet/homebridge-tplink-smarthome
   ```
 
-A specific branch, tag or commit can be installed by appending `#<ref>`, e.g. `github:frousselet/homebridge-tplink-smarthome#main`.
+  From an SSH shell, run it as the `homebridge` user so the files keep the right owner:
+
+  ```sh
+  cd /var/lib/homebridge
+  sudo -u homebridge PATH=/opt/homebridge/bin:$PATH npm install github:frousselet/homebridge-tplink-smarthome
+  ```
+
+- Homebridge installed globally with npm: **do not** use `npm install -g github:...`, npm doesn't install the build tools of git dependencies for global installs (`tsc: not found`). Build a package first and install it:
+
+  ```sh
+  git clone https://github.com/frousselet/homebridge-tplink-smarthome.git
+  cd homebridge-tplink-smarthome
+  npm install
+  npm pack
+  npm install -g ./homebridge-tplink-smarthome-*.tgz
+  ```
+
+With `npm install github:...`, a specific branch, tag or commit can be installed by appending `#<ref>`, e.g. `github:frousselet/homebridge-tplink-smarthome#main`.
 
 Restart Homebridge afterwards. To expose devices over Matter, Homebridge v2.0.0 or later is required and Matter must be enabled for the bridge, see [Matter](#matter).
 
 ## Updating
 
 - `npm update -g homebridge-tplink-smarthome`
-- When installed from GitHub, run the same install command again to get the latest version.
+- When installed from GitHub, run the same install commands again (`git pull` first for a cloned repository) to get the latest version.
 
 ## Configuration
 
